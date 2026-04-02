@@ -1,0 +1,25 @@
+name: network_logger_custom_example
+description: "Demonstrates how to use the network_logger_custom package."
+publish_to: 'none'
+version: 1.0.0
+
+environment:
+  sdk: ^3.0.0
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # This points to the package itself in the parent directory
+  network_logger_custom:
+    path: ../
+  dio: ^5.9.2
+  cupertino_icons: ^1.0.9
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true

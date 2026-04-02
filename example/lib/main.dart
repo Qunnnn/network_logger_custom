@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
-import 'dio_network_logger.dart';
-import 'network_logger_ui.dart';
+import 'package:network_logger_custom/network_logger_custom.dart';
 
 void main() {
   runApp(const MyApp());
