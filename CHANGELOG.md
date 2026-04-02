@@ -1,3 +1,9 @@
+## 1.0.1
+
+* Improved dependency compatibility (Dio ^5.2.0, Cupertino Icons ^1.0.0).
+* Cleaned up library documentation and metadata for pub.dev.
+* Resolved various static analysis warnings for better score.
+
 ## 1.0.0
 
 * Initial release.

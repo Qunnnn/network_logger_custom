@@ -1,6 +1,6 @@
 name: network_logger_custom
 description: "A custom network logger for Flutter applications using Dio, featuring a built-in UI for real-time traffic monitoring and inspection."
-version: 1.0.0
+version: 1.0.1
 
 homepage: https://github.com/Qunnnn/network_logger_custom
 repository: https://github.com/Qunnnn/network_logger_custom
