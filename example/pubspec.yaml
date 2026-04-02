@@ -13,7 +13,7 @@ dependencies:
   # This points to the package itself in the parent directory
   network_logger_custom:
     path: ../
-  dio: ^5.9.2
+  dio: ^5.0.0
   cupertino_icons: ^1.0.9
 
 dev_dependencies:
