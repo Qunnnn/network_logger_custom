@@ -1,1 +1,86 @@
-/// Network event log entry.class NetworkEventLog {  NetworkEventLog(      {this.request,      this.response,      this.error,      this.requestTimestamp,      this.responseTimestamp});  NetworkEventLog.requestNow({this.request, this.response, this.error})      : requestTimestamp = DateTime.now();  NetworkEventLog.responseNow(      {this.request, this.response, this.error, this.requestTimestamp})      : responseTimestamp = DateTime.now();  Request? request;  Response? response;  NetworkError? error;  DateTime? requestTimestamp;  DateTime? responseTimestamp;}/// Used for storing [Request] and [Response] headers.class Headers {  Headers(Iterable<MapEntry<String, String>> entries)      : entries = entries.toList();  Headers.fromMap(Map<String, String> map)      : entries = map.entries as List<MapEntry<String, String>>;  final List<MapEntry<String, String>> entries;  bool get isNotEmpty => entries.isNotEmpty;  bool get isEmpty => entries.isEmpty;  Iterable<T> map<T>(T Function(String key, String value) cb) =>      entries.map((e) => cb(e.key, e.value));  /// Get value by key  String? getValue(String key) {    try {      return entries.firstWhere((e) => e.key == key).value;    } catch (e) {      return null; // Return null if the key doesn't exist    }  }}/// Http request details.class Request {  Request({    required this.uri,    required this.method,    required this.headers,    this.data,  });  final String uri;  final String method;  final Headers headers;  final dynamic data;}/// Http response details.class Response {  Response({    required this.headers,    required this.statusCode,    required this.statusMessage,    this.data,  });  final Headers headers;  final int statusCode;  final String statusMessage;  final dynamic data;}/// Network error details.class NetworkError {  NetworkError({required this.message});  final String message;  @override  String toString() => message;}
+/// Network event log entry.
+class NetworkEventLog {
+  NetworkEventLog({
+    this.request,
+    this.response,
+    this.error,
+    this.requestTimestamp,
+    this.responseTimestamp,
+  });
+
+  NetworkEventLog.requestNow({this.request, this.response, this.error})
+      : requestTimestamp = DateTime.now();
+
+  NetworkEventLog.responseNow({
+    this.request,
+    this.response,
+    this.error,
+    this.requestTimestamp,
+  }) : responseTimestamp = DateTime.now();
+
+  Request? request;
+  Response? response;
+  NetworkError? error;
+  DateTime? requestTimestamp;
+  DateTime? responseTimestamp;
+}
+
+/// Used for storing [Request] and [Response] headers.
+class Headers {
+  Headers(Iterable<MapEntry<String, String>> entries)
+      : entries = entries.toList();
+
+  Headers.fromMap(Map<String, String> map) : entries = map.entries.toList();
+
+  final List<MapEntry<String, String>> entries;
+  bool get isNotEmpty => entries.isNotEmpty;
+  bool get isEmpty => entries.isEmpty;
+
+  Iterable<T> map<T>(T Function(String key, String value) cb) =>
+      entries.map((e) => cb(e.key, e.value));
+
+  /// Get value by key
+  String? getValue(String key) {
+    try {
+      return entries.firstWhere((e) => e.key == key).value;
+    } catch (e) {
+      return null; // Return null if the key doesn't exist
+    }
+  }
+}
+
+/// Http request details.
+class Request {
+  Request({
+    required this.uri,
+    required this.method,
+    required this.headers,
+    this.data,
+  });
+  final String uri;
+  final String method;
+  final Headers headers;
+  final dynamic data;
+}
+
+/// Http response details.
+class Response {
+  Response({
+    required this.headers,
+    required this.statusCode,
+    required this.statusMessage,
+    this.data,
+  });
+  final Headers headers;
+  final int statusCode;
+  final String statusMessage;
+  final dynamic data;
+}
+
+/// Network error details.
+class NetworkError {
+  NetworkError({required this.message});
+  final String message;
+  @override
+  String toString() => message;
+}

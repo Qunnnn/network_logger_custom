@@ -26,8 +26,6 @@ class DioNetworkLogger extends dio.Interceptor {
     dio.RequestOptions options,
     dio.RequestInterceptorHandler handler,
   ) async {
-    super.onRequest(options, handler);
-
     final event = NetworkEventLog.requestNow(
       request: options.toRequest(),
       error: null,
@@ -37,7 +35,7 @@ class DioNetworkLogger extends dio.Interceptor {
     _requests[options] = event;
     eventList.add(event);
 
-    return Future.value(options);
+    handler.next(options);
   }
 
   @override
@@ -45,8 +43,6 @@ class DioNetworkLogger extends dio.Interceptor {
     dio.Response<dynamic> response,
     dio.ResponseInterceptorHandler handler,
   ) {
-    super.onResponse(response, handler);
-
     final event = _requests[response.requestOptions];
     if (event != null) {
       _requests.remove(response.requestOptions);
@@ -69,8 +65,6 @@ class DioNetworkLogger extends dio.Interceptor {
 
   @override
   void onError(dio.DioException err, dio.ErrorInterceptorHandler handler) {
-    super.onError(err, handler);
-
     final event = _requests[err.requestOptions];
     if (event != null) {
       _requests.remove(err.requestOptions);
