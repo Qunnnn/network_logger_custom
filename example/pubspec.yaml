@@ -14,7 +14,7 @@ dependencies:
   network_logger_custom:
     path: ../
   dio: ^5.0.0
-  cupertino_icons: ^1.0.9
+  cupertino_icons: ^1.0.0
 
 dev_dependencies:
   flutter_test:
