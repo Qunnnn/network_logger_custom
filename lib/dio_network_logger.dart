@@ -61,6 +61,8 @@ class DioNetworkLogger extends dio.Interceptor {
         ),
       );
     }
+
+    handler.next(response);
   }
 
   @override
@@ -84,6 +86,8 @@ class DioNetworkLogger extends dio.Interceptor {
         ),
       );
     }
+
+    handler.next(err);
   }
 }
 
