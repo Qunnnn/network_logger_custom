@@ -1,3 +1,7 @@
+## 1.0.2
+
+* **Bugfix**: Fixed missing `handler.next()` calls in `onResponse` and `onError` of `DioNetworkLogger`, which caused the Dio interceptor chain to break — responses and errors were silently swallowed instead of being forwarded to callers.
+
 ## 1.0.1
 
 * Improved dependency compatibility (Dio ^5.2.0, Cupertino Icons ^1.0.0).
