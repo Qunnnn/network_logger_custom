@@ -42,19 +42,35 @@ class _MyHomePageState extends State<MyHomePage> {
   @override
   void initState() {
     super.initState();
+    
+    // Optional: Configure memory limits
+    NetworkLogger.instance.maxEntries = 100;
+    
     // Add the network logger interceptor
     _dio.interceptors.add(DioNetworkLogger());
   }
 
   Future<void> _makeRequest() async {
     try {
+      // 1. Simple GET request
       await _dio.get('https://jsonplaceholder.typicode.com/posts/1');
+      
+      // 2. POST request with JSON data
       await _dio.post('https://jsonplaceholder.typicode.com/posts', data: {
         'title': 'foo',
         'body': 'bar',
         'userId': 1,
       });
-      // Trigger an error
+
+      // 3. POST request with FormData (Multipart)
+      final formData = FormData.fromMap({
+        'name': 'dio',
+        'date': DateTime.now().toIso8601String(),
+        // 'file': await MultipartFile.fromFile('./path/to/file', filename: 'upload.txt'),
+      });
+      await _dio.post('https://httpbin.org/post', data: formData);
+
+      // 4. Trigger an error
       await _dio.get('https://jsonplaceholder.typicode.com/invalid-url');
     } catch (e) {
       // Error is caught and logged by the interceptor
