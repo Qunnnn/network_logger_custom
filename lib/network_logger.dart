@@ -3,6 +3,11 @@ import 'network_event.dart';
 
 /// List that contains network events and notifies dependents on updates.
 class NetworkEventList {
+  NetworkEventList({this.maxEntries = 500});
+
+  /// Maximum number of events to keep in memory to prevent OOM errors.
+  int maxEntries;
+
   final _controller = StreamController<UpdateEvent>.broadcast();
 
   /// Logged network events
@@ -19,6 +24,9 @@ class NetworkEventList {
   /// Add [event] to [events] list and notify dependents.
   void add(NetworkEventLog event) {
     events.insert(0, event);
+    while (events.length > maxEntries) {
+      events.removeLast();
+    }
     _controller.add(UpdateEvent(event));
   }
 
@@ -43,5 +51,6 @@ class UpdateEvent {
 
 /// Network logger interface.
 class NetworkLogger extends NetworkEventList {
+  NetworkLogger({super.maxEntries});
   static final NetworkLogger instance = NetworkLogger();
 }

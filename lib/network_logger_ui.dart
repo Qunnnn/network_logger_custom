@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'enumerate_items.dart';
 import 'network_event.dart';
 import 'network_logger.dart';
+import 'package:dio/dio.dart' as dio;
 
 /// Overlay for [NetworkLoggerButton].
 class NetworkLoggerOverlay extends StatefulWidget {
@@ -82,17 +83,32 @@ class _NetworkLoggerOverlayState extends State<NetworkLoggerOverlay> {
     setState(() {});
   }
 
+  void onPanEnd() {
+    setState(() => lastPosition = null);
+    final centerX = screen.size.width / 2;
+    final buttonCenterX = screen.size.width - right - (buttonSize.width / 2);
+    
+    if (buttonCenterX > centerX) {
+      right = 0;
+    } else {
+      right = screen.size.width - buttonSize.width;
+    }
+    setState(() {});
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.draggable) {
-      return Positioned(
+      return AnimatedPositioned(
+        duration: lastPosition == null 
+            ? const Duration(milliseconds: 300) 
+            : Duration.zero,
+        curve: Curves.easeOutCubic,
         right: right,
         bottom: bottom,
         child: GestureDetector(
           onLongPressMoveUpdate: onPanUpdate,
-          onLongPressUp: () {
-            setState(() => lastPosition = null);
-          },
+          onLongPressUp: onPanEnd,
           onLongPressDown: (details) {
             setState(() => lastPosition = details.localPosition);
           },
@@ -214,7 +230,7 @@ class _NetworkLoggerButtonState extends State<NetworkLoggerButton> {
 }
 
 /// Screen that displays log entries list.
-class NetworkLoggerScreen extends StatelessWidget {
+class NetworkLoggerScreen extends StatefulWidget {
   NetworkLoggerScreen({
     super.key,
     NetworkEventList? eventList,
@@ -247,15 +263,42 @@ class NetworkLoggerScreen extends StatelessWidget {
     );
   }
 
-  final TextEditingController searchController = TextEditingController();
+  @override
+  State<NetworkLoggerScreen> createState() => _NetworkLoggerScreenState();
+}
 
-  /// filte events with search keyword
+class _NetworkLoggerScreenState extends State<NetworkLoggerScreen> {
+  final TextEditingController searchController = TextEditingController();
+  bool filterSuccess = false;
+  bool filterError = false;
+
+  @override
+  void dispose() {
+    searchController.dispose();
+    super.dispose();
+  }
+
+  /// filter events with search keyword and chips
   List<NetworkEventLog> getEvents() {
-    if (searchController.text.isEmpty) return eventList.events;
+    Iterable<NetworkEventLog> events = widget.eventList.events;
+
+    if (filterSuccess) {
+      events = events.where((e) => e.response != null && e.response!.statusCode >= 200 && e.response!.statusCode < 300);
+    } else if (filterError) {
+      events = events.where((e) => e.error != null || (e.response != null && e.response!.statusCode >= 400));
+    }
+
+    if (searchController.text.isEmpty) return events.toList();
     final query = searchController.text.toLowerCase();
-    return eventList.events
-        .where((it) => it.request?.uri.toLowerCase().contains(query) ?? false)
-        .toList();
+    
+    return events.where((it) {
+      if (it.request?.uri.toLowerCase().contains(query) ?? false) return true;
+      if (it.request?.method.toLowerCase().contains(query) ?? false) return true;
+      if (it.response?.statusCode.toString().contains(query) ?? false) return true;
+      if (it.request?.data?.toString().toLowerCase().contains(query) ?? false) return true;
+      if (it.response?.data?.toString().toLowerCase().contains(query) ?? false) return true;
+      return false;
+    }).toList();
   }
 
   @override
@@ -267,38 +310,104 @@ class NetworkLoggerScreen extends StatelessWidget {
         actions: <Widget>[
           IconButton(
             icon: const Icon(
+              Icons.copy,
+              color: Colors.blue,
+            ),
+            onPressed: () {
+              final jsonStr = jsonEncode(widget.eventList.events.map((e) => {
+                'request': {
+                  'uri': e.request?.uri,
+                  'method': e.request?.method,
+                  'headers': e.request?.headers.entries.map((h) => {h.key: h.value}).toList(),
+                  'data': e.request?.data.toString(),
+                  'timestamp': e.requestTimestamp?.toIso8601String(),
+                },
+                'response': e.response != null ? {
+                  'statusCode': e.response?.statusCode,
+                  'statusMessage': e.response?.statusMessage,
+                  'headers': e.response?.headers.entries.map((h) => {h.key: h.value}).toList(),
+                  'data': e.response?.data.toString(),
+                  'timestamp': e.responseTimestamp?.toIso8601String(),
+                } : null,
+                'error': e.error?.toString(),
+              }).toList());
+              Clipboard.setData(ClipboardData(text: jsonStr));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Session copied to clipboard')),
+              );
+            },
+            tooltip: 'Export Session',
+          ),
+          IconButton(
+            icon: const Icon(
               Icons.delete,
               color: Colors.red,
             ),
-            onPressed: eventList.clear,
+            onPressed: widget.eventList.clear,
+            tooltip: 'Clear All',
           ),
         ],
       ),
       body: StreamBuilder(
-        stream: eventList.stream,
+        stream: widget.eventList.stream,
         builder: (context, snapshot) {
           // filter events with search keyword
           final events = getEvents();
           return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              TextField(
-                controller: searchController,
-                onChanged: (text) {
-                  eventList.updated(NetworkEventLog());
-                },
-                autocorrect: false,
-                textAlignVertical: TextAlignVertical.center,
-                decoration: InputDecoration(
-                  filled: true,
-                  fillColor: Colors.white,
-                  prefixIcon: const Icon(Icons.search, color: Colors.black26),
-                  suffix: ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: searchController,
-                    builder: (context, value, child) => value.text.isNotEmpty
-                        ? Text('${getEvents().length} results')
-                        : const SizedBox(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                child: TextField(
+                  controller: searchController,
+                  onChanged: (text) {
+                    setState(() {});
+                  },
+                  autocorrect: false,
+                  textAlignVertical: TextAlignVertical.center,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Theme.of(context).cardColor,
+                    prefixIcon: const Icon(Icons.search, color: Colors.black26),
+                    suffix: searchController.text.isNotEmpty
+                          ? Text('${events.length} results')
+                          : const SizedBox(),
+                    hintText: 'Search URL, body, status...',
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      borderSide: BorderSide.none,
+                    ),
                   ),
-                  hintText: 'enter keyword to search',
+                ),
+              ),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Row(
+                  children: [
+                    FilterChip(
+                      label: const Text('Success (2xx)'),
+                      selected: filterSuccess,
+                      onSelected: (val) {
+                        setState(() {
+                          filterSuccess = val;
+                          if (val) filterError = false;
+                        });
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    FilterChip(
+                      label: const Text('Errors (4xx, 5xx)'),
+                      selected: filterError,
+                      onSelected: (val) {
+                        setState(() {
+                          filterError = val;
+                          if (val) filterSuccess = false;
+                        });
+                      },
+                    ),
+                  ],
                 ),
               ),
               Expanded(
@@ -318,9 +427,9 @@ class NetworkLoggerScreen extends StatelessWidget {
   }
 
   Widget buildItem(BuildContext context, NetworkEventLog item) {
-    var urlText = item.request!.uri;
-    if (isHiddenBaseUrl) {
-      for (var element in baseUrls) {
+    var urlText = item.request?.uri ?? 'Unknown URL';
+    if (widget.isHiddenBaseUrl) {
+      for (var element in widget.baseUrls) {
         if (urlText.contains(element)) {
           urlText = urlText.replaceAll(element, '/');
         }
@@ -329,10 +438,10 @@ class NetworkLoggerScreen extends StatelessWidget {
     return ListTile(
       key: ValueKey(item.request),
       tileColor: item.error == null
-          ? (item.response == null ? Colors.amber : Colors.green)
-          : Colors.red,
+          ? (item.response == null ? Colors.amber.withAlpha(76) : Colors.green.withAlpha(51))
+          : Colors.red.withAlpha(51),
       title: Text(
-        item.request!.method,
+        item.request?.method ?? 'UNKNOWN',
         style: const TextStyle(fontWeight: FontWeight.bold),
       ),
       subtitle: Text(
@@ -341,7 +450,7 @@ class NetworkLoggerScreen extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       ),
       leading: Text(
-        (item.response?.statusCode).toString(),
+        (item.response?.statusCode)?.toString() ?? '-',
         textAlign: TextAlign.center,
         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
       ),
@@ -353,7 +462,7 @@ class NetworkLoggerScreen extends StatelessWidget {
       onTap: () => NetworkLoggerEventScreen.open(
         context,
         item,
-        eventList,
+        widget.eventList,
       ),
     );
   }
@@ -393,35 +502,30 @@ class NetworkLoggerEventScreen extends StatelessWidget {
   /// Which event to display details for.
   final NetworkEventLog event;
   Widget buildBodyViewer(BuildContext context, dynamic body) {
-    String text;
-    if (body == null) {
-      text = '';
-    } else if (body is String) {
-      text = body;
-    } else if (body is List || body is Map) {
-      text = _jsonEncoder.convert(body);
-    } else {
-      text = body.toString();
+    dynamic decodedBody = body;
+    if (body is String) {
+      try {
+        decodedBody = json.decode(body);
+      } catch (_) {}
     }
+    
+    if (decodedBody is Map || decodedBody is List) {
+      return Padding(
+        padding: const EdgeInsets.all(15.0),
+        child: SingleChildScrollView(
+          child: JsonViewer(decodedBody),
+        ),
+      );
+    }
+    
+    String text = body?.toString() ?? '';
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 15),
-      child: GestureDetector(
-        onLongPress: () {
-          Clipboard.setData(ClipboardData(text: text));
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Copied to clipboard'),
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        },
-        child: Text(
-          text,
-          style: const TextStyle(
-            fontFamily: 'monospace',
-            fontFamilyFallback: ['sans-serif'],
-          ),
+      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 15),
+      child: SelectableText(
+        text,
+        style: const TextStyle(
+          fontFamily: 'monospace',
+          fontFamilyFallback: ['sans-serif'],
         ),
       ),
     );
@@ -577,16 +681,34 @@ class NetworkLoggerEventScreen extends StatelessWidget {
             color: Colors.black,
           ),
           actions: <Widget>[
+            if (showResponse)
+              IconButton(
+                icon: const Icon(Icons.data_object, color: Colors.black),
+                tooltip: 'Copy Response JSON',
+                onPressed: () {
+                  final text = event.response?.data is String
+                      ? event.response?.data as String
+                      : _jsonEncoder.convert(event.response?.data);
+                  Clipboard.setData(ClipboardData(text: text));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Response Body copied')),
+                  );
+                },
+              ),
             IconButton(
               icon: const Icon(
                 Icons.copy,
                 color: Colors.black,
               ),
+              tooltip: 'Copy cURL',
               onPressed: () {
                 if (event.request != null) {
                   final curl =
                       RequestToCurlConverter.requestToCurl(event.request!);
                   Clipboard.setData(ClipboardData(text: curl));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('cURL copied to clipboard')),
+                  );
                 }
               },
             ),
@@ -653,13 +775,115 @@ class RequestToCurlConverter {
     }
     // Add the request data if it exists
     if (request.data != null) {
-      final jsonData = json.encode(request.data);
-      curlCommand.add('-d \'$jsonData\'');
+      if (request.data is dio.FormData) {
+        final formData = request.data as dio.FormData;
+        for (var field in formData.fields) {
+          curlCommand.add('-F "${field.key}=${field.value}"');
+        }
+        for (var file in formData.files) {
+          curlCommand.add('-F "${file.key}=@${file.value.filename ?? "file"}"');
+        }
+      } else {
+        try {
+          final jsonData = json.encode(request.data);
+          curlCommand.add('-d \'$jsonData\'');
+        } catch (e) {
+          curlCommand.add('-d \'${request.data.toString()}\'');
+        }
+      }
     }
     // Add the URI
     curlCommand.add('\'${request.uri}\'');
     // Join all parts into a single string
     final curlString = curlCommand.join(' ');
     return curlString;
+  }
+}
+
+class JsonViewer extends StatefulWidget {
+  final dynamic jsonObj;
+  const JsonViewer(this.jsonObj, {super.key});
+
+  @override
+  State<JsonViewer> createState() => _JsonViewerState();
+}
+
+class _JsonViewerState extends State<JsonViewer> {
+  bool _isExpanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.jsonObj is Map) {
+      final map = widget.jsonObj as Map;
+      if (map.isEmpty) return const Text('{}');
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_isExpanded ? Icons.arrow_drop_down : Icons.arrow_right, size: 16),
+                const Text('Object {', style: TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: map.entries.map((e) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${e.key}: ', style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blueGrey)),
+                    Expanded(child: JsonViewer(e.value)),
+                  ],
+                )).toList(),
+              ),
+            ),
+          if (_isExpanded) const Text('}'),
+        ],
+      );
+    } else if (widget.jsonObj is List) {
+      final list = widget.jsonObj as List;
+      if (list.isEmpty) return const Text('[]');
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _isExpanded = !_isExpanded),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(_isExpanded ? Icons.arrow_drop_down : Icons.arrow_right, size: 16),
+                Text('Array [${list.length}]', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+          if (_isExpanded)
+            Padding(
+              padding: const EdgeInsets.only(left: 16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: list.asMap().entries.map((e) => Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('[${e.key}]: ', style: const TextStyle(color: Colors.grey)),
+                    Expanded(child: JsonViewer(e.value)),
+                  ],
+                )).toList(),
+              ),
+            ),
+          if (_isExpanded) const Text(']'),
+        ],
+      );
+    } else {
+      return SelectableText(
+        widget.jsonObj?.toString() ?? 'null',
+        style: const TextStyle(color: Colors.green, fontFamily: 'monospace'),
+      );
+    }
   }
 }
